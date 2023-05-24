@@ -67,8 +67,7 @@ public class ScalarBuiltins { \n\
 \n'
 
 java_registry_epilogue = '\
-  }\n\
-}\n'
+  }\n'
 
 FE_PATH = "../../../fe/fe-core/target/generated-sources/build/org/apache/doris/builtins/"
 print(FE_PATH)
@@ -187,6 +186,21 @@ def generate_fe_entry(entry, name):
         java_output += ", " + generate_fe_datatype(arg, entry["template_types"])
     return java_output
 
+# have to spilt the intege function to two part,
+# because the java method length limit 
+# or it will throw error: code too large
+def generate_fe_interfunc(file):
+    """add function
+    """
+    file.write("    private static void interBuiltin(FunctionSet functionSet) {\n")
+    for i in range(1500, len(meta_data_entries)):
+        entry = meta_data_entries[i]
+        for name in entry["sql_names"]:
+            java_output = generate_fe_entry(entry, name)
+            file.write("        functionSet.addScalarAndVectorizedBuiltin(%s);\n" % java_output)
+    file.write("    }\n")
+    file.write("}\n")
+
 # Generates the FE builtins init file that registers all the builtins.
 def generate_fe_registry_init(filename):
     """add function
@@ -194,11 +208,14 @@ def generate_fe_registry_init(filename):
     java_registry_file = open(filename, "w")
     java_registry_file.write(java_registry_preamble)
 
-    for entry in meta_data_entries:
+    for i in range(len(meta_data_entries)):
+        if i == 1500:
+            break
+        entry = meta_data_entries[i]
         for name in entry["sql_names"]:
             java_output = generate_fe_entry(entry, name)
             java_registry_file.write("        functionSet.addScalarAndVectorizedBuiltin(%s);\n" % java_output)
-
+    java_registry_file.write("        interBuiltin(functionSet);\n")
     java_registry_file.write("\n")
 
     # add non_null_result_with_null_param_functions
@@ -219,6 +236,7 @@ def generate_fe_registry_init(filename):
     java_registry_file.write("        functionSet.buildNullResultWithOneNullParamFunction(funcNames);\n");
 
     java_registry_file.write(java_registry_epilogue)
+    generate_fe_interfunc(java_registry_file)
     java_registry_file.close()
 
 if __name__ == "__main__":
